@@ -1,0 +1,28 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: main
+    hooks:
+      - id: no-commit-to-branch
+        stages: [commit]
+        args: [-b, main, -b, dev]
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: master
+    hooks:
+      - id: fmt
+        stages: [commit]
+      - id: cargo-check
+        stages: [commit]
+      - id: clippy
+        stages: [commit]
+  - repo: https://github.com/lyz-code/yamlfix
+    rev: main
+    hooks:
+      - id: yamlfix
+        stages: [commit]
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: master
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ['@commitlint/config-conventional']
