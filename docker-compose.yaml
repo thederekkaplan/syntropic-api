@@ -1,9 +1,21 @@
 ---
 services:
   syntropic-api:
-    build: .
+    build:
+      context: .
+      target: service
     ports: [8080:8080]
     depends_on: [postgres]
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
+  test:
+    build:
+      context: .
+      target: test
+    command: cargo test
+    depends_on: [postgres]
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
   postgres:
     image: postgres
     ports: [5432:5432]

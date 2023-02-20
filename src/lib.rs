@@ -9,19 +9,25 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use graphql::{Mutation, Query};
 use juniper::{EmptySubscription, RootNode};
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler};
+use std::env::var;
 
 pub mod graphql;
 pub mod models;
 mod schema;
 mod snowflake;
 
-const DB_URL: &str = "postgres://postgres:password@localhost/syntropic";
+fn db_url() -> String {
+    println!("DATABASE_URL: {:?}", var("DATABASE_URL"));
+    var("DATABASE_URL")
+        .unwrap_or("postgres://postgres:password@localhost:5432/syntropic".to_string())
+}
+
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 type Schema = RootNode<'static, Query, Mutation, EmptySubscription<PostgresContext>>;
 
 pub async fn run_migrations() {
-    let manager = Manager::new(DB_URL, Runtime::Tokio1);
+    let manager = Manager::new(db_url(), Runtime::Tokio1);
     let client = manager.create().await.unwrap();
     client
         .interact(|client| {
@@ -32,7 +38,7 @@ pub async fn run_migrations() {
 }
 
 pub fn pool() -> Pool {
-    let manager = Manager::new(DB_URL, Runtime::Tokio1);
+    let manager = Manager::new(db_url(), Runtime::Tokio1);
     Pool::builder(manager).build().unwrap()
 }
 
