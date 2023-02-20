@@ -1,6 +1,5 @@
 use crate::models::message::Message;
 use crate::schema::message as message_schema;
-use crate::snowflake::{snowflake, time_millis};
 use crate::PostgresContext;
 use base64::prelude::BASE64_URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -27,7 +26,7 @@ impl Query {
     }
 
     /// The message with the given ID
-    pub async fn message(id: String, context: &PostgresContext) -> FieldResult<Option<Message>> {
+    pub async fn message(context: &PostgresContext, id: String) -> FieldResult<Option<Message>> {
         Ok(context
             .message_loader
             .load(BASE64_URL_SAFE_NO_PAD.decode(id)?)
@@ -39,13 +38,7 @@ impl Query {
 impl Mutation {
     /// Send a message
     pub async fn send_message(context: &PostgresContext, body: String) -> FieldResult<Message> {
-        let timestamp = time_millis()?;
-        let id = snowflake(timestamp);
-        let message = Message {
-            id,
-            timestamp,
-            body,
-        };
+        let message = Message::new(body);
 
         let client = context.pool.get().await?;
         let message = client
