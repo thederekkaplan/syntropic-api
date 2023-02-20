@@ -10,8 +10,8 @@ use graphql::{Mutation, Query};
 use juniper::{EmptySubscription, RootNode};
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler};
 
-mod graphql;
-mod models;
+pub mod graphql;
+pub mod models;
 mod schema;
 mod snowflake;
 
@@ -31,14 +31,14 @@ pub async fn run_migrations() {
         .unwrap();
 }
 
-fn pool() -> Pool {
+pub fn pool() -> Pool {
     let manager = Manager::new(DB_URL, Runtime::Tokio1);
     Pool::builder(manager).build().unwrap()
 }
 
 pub struct PostgresContext {
-    pool: Pool,
-    message_loader: MessageLoader,
+    pub pool: Pool,
+    pub message_loader: MessageLoader,
 }
 
 impl juniper::Context for PostgresContext {}
