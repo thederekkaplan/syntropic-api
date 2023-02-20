@@ -8,8 +8,8 @@ plugins:
   - '@semantic-release/release-notes-generator'
   - '@semantic-release/changelog'
   -   - '@semantic-release/exec'
-      - prepareCmd: sed -E -i -e "s/^(version[[:space:]]*=[[:space:]]*)(.*)$/\1\"${nextRelease.version}\"/"
-          Cargo.toml
+      - prepareCmd: perl -i -p0e 's/(\nname[[:space:]]*=[[:space:]]*"syntropic-api"\nversion[[:space:]]*=[[:space:]]*)(.*)\n/\1"foobar"\n/'
+          Cargo.toml Cargo.lock
   -   - '@semantic-release/git'
       - assets: [Cargo.toml, CHANGELOG.md]
   - '@semantic-release/github'
