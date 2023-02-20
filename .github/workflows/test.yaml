@@ -1,0 +1,16 @@
+---
+name: test
+on:
+  push:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: isbang/compose-action@v1.4.1
+        with:
+          compose-file: docker-compose.yaml
+          services: test
+          up-flags: --abort-on-container-exit
