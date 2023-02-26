@@ -5,7 +5,7 @@ services:
       context: .
       target: service
     ports: [8080:8080]
-    depends_on: [postgres]
+    depends_on: [postgres, rabbitmq]
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
   test:
@@ -13,7 +13,7 @@ services:
       context: .
       target: test
     command: cargo test
-    depends_on: [postgres]
+    depends_on: [postgres, rabbitmq]
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
   postgres:
@@ -22,3 +22,6 @@ services:
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: syntropic
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: [5672:5672, 15672:15672]
