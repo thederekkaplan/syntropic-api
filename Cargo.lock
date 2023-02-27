@@ -2326,7 +2326,7 @@ dependencies = [
 
 [[package]]
 name = "syntropic-api"
-version = "1.0.0-dev.1"
+version = "1.0.0-dev.2"
 dependencies = [
  "actix-cors",
  "actix-rt",
