@@ -1,3 +1,5 @@
+use crate::amqp::AmqpClient;
+use crate::graphql::Subscription;
 use crate::models::message::{Message, MessageLoader};
 use actix_web::web::{resource, Data, ServiceConfig};
 use actix_web::{web, Error, HttpResponse};
@@ -7,26 +9,40 @@ use deadpool_diesel::postgres::Pool;
 use deadpool_diesel::Runtime;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use graphql::{Mutation, Query};
-use juniper::{EmptySubscription, RootNode};
+use juniper::RootNode;
+use juniper_actix::subscriptions::subscriptions_handler;
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler};
+use juniper_graphql_ws::ConnectionConfig;
 use std::env::var;
+use std::sync::Arc;
 
+mod protos {
+    include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
+    pub use message::Message;
+}
+
+pub mod amqp;
 pub mod graphql;
 pub mod models;
 mod schema;
 mod snowflake;
 
 fn db_url() -> String {
-    println!("DATABASE_URL: {:?}", var("DATABASE_URL"));
     var("DATABASE_URL")
         .unwrap_or("postgres://postgres:password@localhost:5432/syntropic".to_string())
 }
 
+fn amqp_url() -> String {
+    var("AMQP_URL").unwrap_or("amqp://localhost:5672".to_string())
+}
+
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-type Schema = RootNode<'static, Query, Mutation, EmptySubscription<PostgresContext>>;
+type Schema = RootNode<'static, Query, Mutation, Subscription>;
 
-pub async fn run_migrations() {
+type AppData = Data<(Pool, AmqpClient)>;
+
+pub async fn data() -> AppData {
     let manager = Manager::new(db_url(), Runtime::Tokio1);
     let client = manager.create().await.unwrap();
     client
@@ -35,52 +51,67 @@ pub async fn run_migrations() {
         })
         .await
         .unwrap();
+    let pool = Pool::builder(manager).build().unwrap();
+    let amqp_client = AmqpClient::new(amqp_url()).await;
+    Data::new((pool, amqp_client))
 }
 
-pub fn pool() -> Pool {
-    let manager = Manager::new(db_url(), Runtime::Tokio1);
-    Pool::builder(manager).build().unwrap()
-}
-
-pub struct PostgresContext {
+pub struct Context {
     pub pool: Pool,
     pub message_loader: MessageLoader,
+    pub amqp_client: AmqpClient,
 }
 
-impl juniper::Context for PostgresContext {}
+impl juniper::Context for Context {}
+
+impl From<AppData> for Context {
+    fn from(data: AppData) -> Self {
+        Self {
+            pool: data.as_ref().0.clone(),
+            message_loader: Message::loader(data.as_ref().0.clone()),
+            amqp_client: data.as_ref().1.clone(),
+        }
+    }
+}
 
 fn schema() -> Schema {
-    Schema::new(Query, Mutation, EmptySubscription::new())
+    Schema::new(Query, Mutation, Subscription)
 }
 
 async fn graphiql_route() -> Result<HttpResponse, Error> {
-    graphiql_handler("/graphql", None).await
+    graphiql_handler("/graphql", Some("/subscriptions")).await
 }
 
 async fn playground_route() -> Result<HttpResponse, Error> {
-    playground_handler("/graphql", None).await
+    playground_handler("/graphql", Some("/subscriptions")).await
 }
 
 async fn graphql_route(
     req: actix_web::HttpRequest,
     payload: web::Payload,
-    data: Data<(Schema, Pool)>,
+    data: Data<(Pool, AmqpClient)>,
 ) -> Result<HttpResponse, Error> {
-    let context = PostgresContext {
-        pool: data.get_ref().1.clone(),
-        message_loader: Message::loader(data.get_ref().1.clone()),
-    };
+    graphql_handler(&schema(), &data.into(), req, payload).await
+}
 
-    graphql_handler(&data.get_ref().0, &context, req, payload).await
+async fn subscriptions_route(
+    req: actix_web::HttpRequest,
+    payload: web::Payload,
+    data: Data<(Pool, AmqpClient)>,
+) -> Result<HttpResponse, Error> {
+    let config = ConnectionConfig::new(data.into());
+    let config = config.with_keep_alive_interval(std::time::Duration::from_secs(15));
+
+    subscriptions_handler(req, payload, Arc::new(schema()), config).await
 }
 
 pub fn configure(cfg: &mut ServiceConfig) {
-    cfg.app_data(Data::new((schema(), pool())))
-        .service(
-            resource("/graphql")
-                .route(web::post().to(graphql_route))
-                .route(web::get().to(graphql_route)),
-        )
-        .service(resource("/graphiql").route(web::get().to(graphiql_route)))
-        .service(resource("/playground").route(web::get().to(playground_route)));
+    cfg.service(
+        resource("/graphql")
+            .route(web::post().to(graphql_route))
+            .route(web::get().to(graphql_route)),
+    )
+    .service(resource("/subscriptions").route(web::get().to(subscriptions_route)))
+    .service(resource("/graphiql").route(web::get().to(graphiql_route)))
+    .service(resource("/playground").route(web::get().to(playground_route)));
 }

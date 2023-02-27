@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message Message {
+  bytes id = 1;
+  string body = 2;
+  fixed64 timestamp = 3;
+}

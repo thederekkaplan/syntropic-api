@@ -1,5 +1,7 @@
+use crate::amqp::{AmqpError, Protobuf};
+use crate::protos::Message as MessageProto;
 use crate::schema::message as message_schema;
-use crate::snowflake::snowflake;
+use crate::snowflake::{snowflake, time_in_millis};
 use base64::prelude::BASE64_URL_SAFE_NO_PAD;
 use base64::Engine;
 use dataloader::cached::Loader;
@@ -8,6 +10,8 @@ use deadpool_diesel::postgres::Pool;
 use diesel::prelude::*;
 use diesel::{Insertable, Queryable};
 use juniper::async_trait;
+use protobuf::Message as ProtobufMessage;
+use protobuf::SpecialFields;
 use std::collections::HashMap;
 use std::error::Error;
 use time::OffsetDateTime;
@@ -22,7 +26,7 @@ pub struct Message {
 
 impl Message {
     pub fn new(body: String) -> Self {
-        let timestamp = OffsetDateTime::now_utc();
+        let timestamp = time_in_millis();
         let id = snowflake(timestamp);
         Self {
             id,
@@ -32,7 +36,42 @@ impl Message {
     }
 }
 
-#[juniper::graphql_object(Context = crate::PostgresContext)]
+impl Protobuf for Message {
+    fn try_to_protobuf(self) -> Result<Vec<u8>, AmqpError> {
+        let message = MessageProto {
+            id: self.id,
+            timestamp: (self.timestamp.unix_timestamp_nanos() / 1_000_000) as u64,
+            body: self.body,
+            special_fields: SpecialFields::new(),
+        };
+        match message.write_to_bytes() {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => Err(AmqpError {
+                message: e.to_string(),
+            }),
+        }
+    }
+
+    fn try_from_protobuf(payload: &[u8]) -> Result<Self, AmqpError> {
+        let message = crate::protos::Message::parse_from_bytes(payload).unwrap();
+        Ok(Self {
+            id: message.id.to_vec(),
+            timestamp: match OffsetDateTime::from_unix_timestamp_nanos(
+                message.timestamp as i128 * 1_000_000,
+            ) {
+                Ok(timestamp) => timestamp,
+                Err(e) => {
+                    return Err(AmqpError {
+                        message: e.to_string(),
+                    })
+                }
+            },
+            body: message.body.to_string(),
+        })
+    }
+}
+
+#[juniper::graphql_object(Context = crate::Context)]
 /// A chat message
 impl Message {
     /// The message's unique ID

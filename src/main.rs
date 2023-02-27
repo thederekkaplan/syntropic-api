@@ -1,13 +1,14 @@
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, App, HttpServer};
-use syntropic_api::{configure, run_migrations};
+use syntropic_api::{configure, data};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    run_migrations().await;
+    let data = data().await;
 
-    let server = HttpServer::new(|| {
+    let server = HttpServer::new(move || {
         App::new()
+            .app_data(data.clone())
             .configure(configure)
             .wrap(
                 Cors::default()

@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 juniper = { git = "https://github.com/graphql-rust/juniper", features = ["time"]}
-juniper_actix = { git = "https://github.com/graphql-rust/juniper" }
+juniper_actix = { git = "https://github.com/graphql-rust/juniper", features = ["subscriptions"] }
+juniper_graphql_ws = { git = "https://github.com/graphql-rust/juniper" }
 actix-web = "4.3.0"
 actix-cors = "0.6.4"
 time = "0.3.17"
@@ -18,7 +19,17 @@ diesel = { version = "2.0.0", features = ["postgres", "time"] }
 deadpool = "0.9.5"
 deadpool-diesel = { version = "0.4.1", features = ["postgres"] }
 diesel_migrations = "2.0.0"
+actix-rt = "2.8.0"
+protobuf = "3.2.0"
+lapin = "2.1.1"
+async-trait = "0.1.64"
+strum = "0.24.1"
+strum_macros = "0.24.3"
+tokio = "1.25.0"
 
 [dev-dependencies]
-actix-rt = "2.8.0"
 serial_test = "1.0.0"
+
+[build-dependencies]
+protobuf-codegen = "3.2.0"
+protoc-bin-vendored = "3.0.0"
