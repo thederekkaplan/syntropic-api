@@ -8,6 +8,7 @@ services:
     depends_on: [postgres, rabbitmq]
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
+      AMQP_URL: amqp://rabbitmq:5672
   test:
     build:
       context: .
@@ -16,6 +17,7 @@ services:
     depends_on: [postgres, rabbitmq]
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/syntropic
+      AMQP_URL: amqp://rabbitmq:5672
   postgres:
     image: postgres
     ports: [5432:5432]

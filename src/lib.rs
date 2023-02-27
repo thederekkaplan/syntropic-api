@@ -32,6 +32,10 @@ fn db_url() -> String {
         .unwrap_or("postgres://postgres:password@localhost:5432/syntropic".to_string())
 }
 
+fn amqp_url() -> String {
+    var("AMQP_URL").unwrap_or("amqp://localhost:5672".to_string())
+}
+
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 type Schema = RootNode<'static, Query, Mutation, Subscription>;
@@ -48,7 +52,7 @@ pub async fn data() -> AppData {
         .await
         .unwrap();
     let pool = Pool::builder(manager).build().unwrap();
-    let amqp_client = AmqpClient::new().await;
+    let amqp_client = AmqpClient::new(amqp_url()).await;
     Data::new((pool, amqp_client))
 }
 

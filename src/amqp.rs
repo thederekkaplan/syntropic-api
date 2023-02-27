@@ -37,8 +37,22 @@ pub trait Protobuf: Sized {
 }
 
 struct ChannelManager {
+    url: String,
     connection: Mutex<Connection>,
 }
+
+impl ChannelManager {
+    pub async fn new(url: String) -> Self {
+        let connection = Connection::connect(url.as_str(), ConnectionProperties::default())
+            .await
+            .unwrap();
+        Self {
+            url,
+            connection: Mutex::new(connection),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl Manager for ChannelManager {
     type Type = Channel;
@@ -49,8 +63,7 @@ impl Manager for ChannelManager {
 
         if !conn.status().connected() {
             let connection =
-                Connection::connect("amqp://localhost:5672", ConnectionProperties::default())
-                    .await?;
+                Connection::connect(self.url.as_str(), ConnectionProperties::default()).await?;
             *conn = connection;
         }
 
@@ -80,18 +93,10 @@ pub struct AmqpClient {
 }
 
 impl AmqpClient {
-    pub async fn new() -> Self {
-        let producer = Pool::builder(ChannelManager {
-            connection: Connection::connect(
-                "amqp://localhost:5672",
-                ConnectionProperties::default(),
-            )
-            .await
-            .unwrap()
-            .into(),
-        })
-        .build()
-        .unwrap();
+    pub async fn new(url: String) -> Self {
+        let producer = Pool::builder(ChannelManager::new(url.clone()).await)
+            .build()
+            .unwrap();
 
         let object: Object<ChannelManager> = producer.get().await.unwrap();
         let channel: &Channel = object.as_ref();
@@ -110,17 +115,9 @@ impl AmqpClient {
                 .unwrap();
         }
 
-        let consumer = Pool::builder(ChannelManager {
-            connection: Connection::connect(
-                "amqp://localhost:5672",
-                ConnectionProperties::default(),
-            )
-            .await
-            .unwrap()
-            .into(),
-        })
-        .build()
-        .unwrap();
+        let consumer = Pool::builder(ChannelManager::new(url.clone()).await)
+            .build()
+            .unwrap();
 
         Self { producer, consumer }
     }
